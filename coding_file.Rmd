@@ -1,0 +1,362 @@
+---
+title: "Making Expedia Great Again (MEGA)"
+author: "Ishan Malhotra - 1007658553, Aarnav Chaudasama - 1007756395, Arnav Dey - 1008576140, Danish Ahmed Bombal - 1007733008 (GROUP 50)"
+subtitle: "Investigating how search filters affect the decisions of a rational consumer"
+date: March 31, 2022
+output: 
+  beamer_presentation:
+    theme: "AnnArbor"
+    colortheme: "dolphin"
+    fonttheme: "structurebold"
+    slide_level: 2
+classoption: "aspectratio=169"
+fontsize: 11pt
+urlcolor: blue
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+install.packages("gridExtra", repos = "http://cran.rstudio.com/")              
+library("gridExtra")
+install.packages("rpart",repos="http://cran.rstudio.com/")
+library(rpart)
+install.packages("partykit", repos = "http://cran.rstudio.com/")
+library("partykit")
+
+# here is the data for this project
+expedia_data <- read_csv("ExpediaSearchData.csv")
+
+# see the Project Overview page for more information: 
+# https://q.utoronto.ca/courses/235890/pages/project-overview
+```
+
+
+##  Introduction 
+
+Through this presentation, we intent to peruse how consumer decision-making is influenced with changes in a multitude of filters while searching for different accommodations. 
+
+This in-depth investigation necessitated us to utilize variables such as the number of adults (*adult_count*), children (*child_count*), and infants (*infant_count*). Additionally, we used star ratings(*star_rating1*), number of reviews (*review_count1*), price bucket (*price_bucket1*) and whether a listing is discounted or not (*is_drr1*).
+
+What are the average number of reviews generated for discounted and non-discounted listings? How well does star rating and review count predict the price of a listing?  What is the majority consumer base of Expedia? These are some of the questions we hope to answer.
+
+By the virtue of this detailed research study, Expedia will be able to comprehend how they can devise changes to the platform, make further improvements in Search Engine Optimization (SEO) and increase the overall appeal of their web page.
+
+
+
+## Data summary 
+
+### Data Wrangling:
+
+-  **Q1**:
+   + For Q1 we created two new variables: the first variable, *'total_no_of_kids'*  is the sum of the *'infant_count'* and *'child_count'*, which indicates the total number of juveniles the individual is traveling with. The second variable created is *'traveling_with_kids'*, which indicates whether an individual is traveling with juveniles or not based on the *'total_no_of_kids'* count. 
+-  **Q2**: 
+   + For this question, a new variable *'price_level'* was created taking price bucket 1 into consideration. If the price bucket was equal to 3 and below, then it is considered a low-price level. If the price bucket was equal to 4 and above, it is a high price level.
+-  **Q3**:
+   + For Q3, we mutated a new variable named *'is_drr1_'* where we classified the listings whether they are at a discounted price or not and converted them in a more functionable format. \textcolor{red}{[1 ~ ‘Discounted’, 0 ~ ‘Not discounted’]}
+
+---
+
+## Question 1: Is the proportion of travelers who are seeking an accommodation with no kids accompanying them 90%?
+
+
+### Objectives
+\begin{columns}
+\column{0.5\textwidth}
+
+
+1. To identify, define and establish the majority customer base of Expedia.
+
+
+\column{0.5\textwidth}
+\centering
+\includegraphics[width = 7cm, height = 4cm]{images/happy-large-family-traveling.jpg}
+\end{columns}
+
+
+
+## (i) Visualization
+
+```{r, echo=FALSE, fig.height=2.25, fig.width=4, fig.align='center'}
+expedia_data <- expedia_data %>% mutate((total_no_of_kids = child_count+ infant_count), traveling_with_kids = case_when(total_no_of_kids >= 1~ "Yes", total_no_of_kids < 1 ~"No" )) 
+
+set.seed(395)
+n_observations <- 1000
+repetions<- 1500
+simulated_stats <- rep(NA, repetions)
+
+for(i in 1:repetions){
+result<-c("withkids","withoutkids")
+flips<-sample(result, size = n_observations, prob = c(0.1,0.9), replace = TRUE) 
+sim_1 <- sum(flips == "withoutkids")/n_observations 
+simulated_stats[i]<-sim_1 ; }
+
+sim <- tibble(p_withoutkids = simulated_stats)
+graph244 <-sim %>% ggplot(aes(x=p_withoutkids))+geom_histogram(binwidth = 0.02,color= "black", fill="grey")
+
+test_stat <- 0.884
+ggplot(data = expedia_data, aes(x= traveling_with_kids, color= traveling_with_kids, fill = traveling_with_kids))+
+geom_bar()+
+theme_minimal()+
+geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "white")+ labs(x="traveling with kids", title = "Barplot representing the number of searches \n with juveniles/kids (n=1000)") +theme(plot.title = element_text(size = 8))
+```
+
+
+## (ii) Statistical Methods
+### **Null Hypothesis** 
+
+-  Proportion of travelers on Expedia that are traveling without juveniles is equal to 90% 
+
+\textcolor{red}{$H_{0}: p_{traveling\ without\  children }  = 0.9$}\
+
+### **Alternative Hypothesis**
+
+-  Proportion of travelers on Expedia that are traveling without juveniles is not equal to 90% 
+
+\textcolor{red}{$H_{1}: p_{traveling\ without\  children } \neq0.9$}\
+  
+
+## (iii) Results and Interpretation
+
+\begin{columns}
+\column{0.5\textwidth}
+
+Since the significance level $\alpha$ (\textcolor{brown}{which determines the cut-off for how unusual/etreme the data is})\ is 0.05, and since the enumerated p-value is 0.09866667, we know that there is weak evidence against the null hypothesis i.e., we accept the null hypothesis.
+
+
+
+1.  90 percent of customers are questing for a property without children, which implies that it has a clear target customer it serves. Expedia can use this data to efficiently allocate their promotional budget in order to further increase their sales.\
+
+\column{0.5\textwidth}
+\centering
+```{r, echo=FALSE, fig.align='center', fig.height=1.5, fig.width=2.5, message=FALSE, warning=FALSE}
+sim %>% ggplot(aes(x=p_withoutkids))+geom_histogram(binwidth = 0.005,color="black", fill="grey")+labs(title = "Sampling Distribution/Simulated Proportions \n of searches without kids (n = 1000)")+theme(plot.title = element_text(size = 7)) +geom_vline(xintercept = 0.9 -abs(0.9-test_stat),color="red")+ geom_vline(xintercept = 0.9+abs(0.9-test_stat), color="blue")
+a1<- 0.9 -abs(0.9-test_stat)
+a2<-0.9+abs(0.9-test_stat)
+pvalue<-sim %>%
+filter(p_withoutkids>= a2 | p_withoutkids<= a1) %>% summarise(p_value= n()/repetions)
+percentage =c( 0.884, 0.116)
+
+```
+P-value = 0.09866667	
+\end{columns}
+
+
+## Question 2: How does review count and star rating affect the price level for the first listing?
+
+
+### Objectives
+
+\begin{columns}
+\column{0.5\textwidth}
+
+1. To increase the number of purchases by providing information about how review count and star rating affect the price level for the first listing
+
+\column{0.5\textwidth}
+\centering
+\includegraphics[width = 3cm, height = 2.5cm]{images/download-5.jpeg}
+\includegraphics[width = 6cm, height = 2.5cm]{images/Gear-Feature-Art-Amazon-Ratings-1127163442.jpeg}
+
+
+\end{columns}
+
+
+## (i) Visualization
+```{r echo=FALSE, fig.align='center', fig.height=2.96, fig.width=6.2, message=FALSE, warning=FALSE}
+
+expedia_data <- expedia_data %>% filter(!is.na(price_bucket1)) %>% mutate(price_level = case_when(price_bucket1 <= 3 ~ 'low', price_bucket1 > 3 ~ 'high')) 
+
+set.seed(140)
+
+n <- nrow(expedia_data)
+train_indices <- sample(1:n, size=(0.8*n))
+
+expedia_data <- expedia_data %>% rowid_to_column()
+train_data <- expedia_data %>% filter(rowid %in% train_indices)
+test_data <- expedia_data %>% filter(!(rowid %in% train_indices))
+
+tree1 <- rpart(price_level ~ review_count1 + star_rating1, data = train_data)
+plot(as.party(tree1), type = 'simple')
+
+
+
+```
+
+## (ii) Statistical Methods  
+
+- Since price level is a categorical variable, we use a classification tree to determine whether review count and star ratings help predict price level. In this tree, the price level is the response variable whereas star rating and review count are the independent variables. 
+
+- The classification tree is modelled on training data which is 80% of all data. We then produce testing data that is 20% of all data and construct a confusion matrix in order to test the accuracy of the classification tree on the testing data.
+
+-	Additionally, we calculate the sensitivity of the classification tree (which is important for analysis purposes)
+
+
+| tree_pred | high | low |
+|-----------|------|-----|
+| high      | 43   | 16  |
+| low       | 43   | 87  |
+
+\textcolor{red}{Accuracy}: (43 + 87)/(43 + 43 + 16 +87) = 0.69
+\textcolor{red}{Sensitivity}: (43)/(43 + 43) = 0.50
+
+## (iii) Results and Interpretations
+
+	
+-	The accuracy is 0.69 which implies that the prediction is correct 69% of the time. This means that this is a fairly suitable model for prediction
+
+-	Based on this analysis, we propose that new search filters are added namely review count and star rating that can be manipulated by the customer. Information should be given about which values of review count and star rating provide low prices and high prices. This should be done in order to maximize sales from those price-sensitive customers who look for low prices. 
+
+-	The sensitivity is 50% which means that there is a 50-50 chance that the model predicts a listing to have a low price when it actually has a high price. If customers believe that prices which are supposed to be high are considered low on the site, they will psychologically convince themself that expensive listings are actually cheap due to a lack of other options between low and high. Thus, Expedia can potentially earn more money.
+
+
+## Q3: Should Expedia change their price discrimination (discount) strategies to surge the number of reviews on their listings?
+
+### Objectives
+
+\begin{columns}
+\column{0.5\textwidth}
+
+1. To assess whether the primary listing having a discount reduction enumerated price also has the highest number of reviews
+
+2. To analyze and gauge the price marketing strategies of Expedia and ascertain if discount essentially plays a significant role in augmenting the number of reviews on a particular listing
+
+\column{0.5\textwidth}
+\centering
+\includegraphics[width = 5.5cm, height = 4.5cm]{images/discount.jpeg}
+
+
+\end{columns}
+
+## (i) Visualization
+
+
+```{r echo=FALSE, fig.align='center', fig.height=2, fig.width=4, message=FALSE, warning=FALSE}
+expedia_data <- expedia_data %>%
+  mutate(is_drr1_ = case_when(is_drr1 == 0 ~ "No", is_drr1 == 1 ~ "Yes"))
+
+ggplot(data = expedia_data, aes(x = is_drr1_, y = review_count1)) +
+  geom_boxplot(color = "black", fill = "gray") +
+  labs(y = "Number of reviews",
+       x = "Discount Price Reduction",
+       title = "Boxplot exhibiting the distribution of review \n count across discounted and non-discounted listings") + theme(plot.title = element_text(size = 8))+
+  ylim(0,3000)
+
+```
+
+
+## (ii) Statistical Methods
+
+### **Null Hypothesis** 
+
+-  There is no difference in the mean number of reviews for listings that are discounted and the listings that are not discounted. \
+
+\textcolor{red}{$H_{0}: \mu_{discounted} - \mu_{not-discounted} = 0$}\
+
+### **Alternative Hypothesis**
+
+-  There is a difference in the mean number of reviews for listings that are discounted and the listings that are not discounted.\
+
+\textcolor{red}{$H_{1}: \mu_{discounted} - \mu_{not-discounted} \neq0$}\
+
+## (iii) Results and Interpretations
+
+\begin{columns}
+\column{0.5\textwidth}
+
+1. The p-value is 0 i.e., there is very strong evidence against the null hypothesis that there is no difference in the mean number of reviews between discounted and non-discounted listings.
+
+2. In compliance with the visualization, since there are more outliers in the boxplot for discounted listings than otherwise, the mean number of reviews is expected to be more substantial for the former.
+
+3. Nevertheless, since there is an extremely slight and inappreciable difference between the IQR [Inter-Quartile range](Q3 - Q1) of the two boxplots, Expedia can implement superior ways to augment the number of reviews.
+
+\column{0.5\textwidth}
+\centering
+```{r, echo=FALSE, fig.align='center', fig.height=1.8, fig.width=3, message=FALSE, warning=FALSE}
+test_stat <- expedia_data %>% group_by(is_drr1_) %>%
+  summarise(means = mean(review_count1), groups = "drop") %>%
+  summarise(value = diff(means))
+test_stat <- as.numeric(test_stat)
+
+set.seed(553)
+repetitions <- 1000
+simulated_values <- rep(NA, repetitions)
+
+for(i in 1:repetitions){
+  simdata <- expedia_data %>% mutate(is_drr1_ = sample(is_drr1_))
+  
+  sim_value <- simdata %>% group_by(is_drr1_) %>%
+    summarise(means = mean(review_count1), groups = "drop") %>%
+    summarise(value = diff(means))
+  
+  simulated_values[i] <- as.numeric(sim_value)
+}
+  
+sim <- tibble(mean_diff = simulated_values)
+sim %>% ggplot(aes(x = mean_diff)) + geom_histogram(binwidth = 30, color = "black", fill = "gray")+labs(title = "Sampling Distribution/Simulated proportions of \n mean differences of review count for discounted \n and non-discounted listings (n = 1000)") + theme(plot.title = element_text(size = 7))+geom_vline(xintercept = 672.8236, color = "blue") + geom_vline(xintercept = - 672.8236, color = "red")
+                                                                          
+
+# Calculating the p-value
+
+num_more_extreme <- sim %>% filter(abs(mean_diff) >= abs(test_stat)) %>% summarise(n())
+
+p_value <- as.numeric(num_more_extreme / repetitions)
+
+```
+
+
+Test-Statistic: 672.8236
+
+P-value: 0
+
+\end{columns}
+
+## Limitations
+
+### Q1
+-   During this period, the travel industry was extraordinarily impacted by the outbreak of Covid-19; hence, the data given to us is not archetypal (of the pre-pandemic era) as innumerable people would not risk going out with their children in such circumstances.\
+-  There is also a probability of having a Type 2 error as we have accepted the null hypothesis. This insinuates that it is reasonably possible for the alternative hypothesis to be true.
+
+### Q2
+-	The thresholds set for a low price and a high price are arbitrarily determined. Possibly, what customers consider expensive and what we perceive they appraise expensive are quite different.
+
+-	The low sensitivity may lead to price-sensitive customers not booking listings because they recognize that the so-called disernible low prices are actually high. 
+
+## Limitations (Cont.)
+
+### Q3
+
+-   There is a possibility that we might make a Type 1 error i.e.,it is plausible that the mean number of reviews for both discounted and undiscounted listings are the same despite our pronouncement to reject the null hypothesis.
+
+-   Furthermore, there may be occurrences where a listing with a high number of reviews may also encompass a considerable number of substandard and poor feedback from the customers. Hence, it might not be an excellent decision to show such listings on the top.
+
+-   Though we have deduced that the mean number of reviews is not equal between discounted and non-discounted listings through the p-value, it is arduous to figure out the actual reason why they are not equal through this statistical approach. Perhaps, there may be numerous other factors that can remarkably influence the number of reviews including customer services, amenities available at the respective listing including parking, swimming pool etc. and more.
+
+
+## Conclusion
+
+-   For Q1, after the research, we were able to ratify and corroborate that the consumer base of Expedia majorly comprises of the people who travel without juveniles. Through this information, Expedia should now utilize price discriminating strategies on clientele groups like couples; consequently, increasing their overall sales.
+
+-   For Q2, the addition of filters can help proliferate the number of purchases for Expedia. Price-sensitive customers can be guided to listings suitable to their preferences who did not have the option of using these filters. In the investigation, we ascertained that the patrons may not have booked a listing because they could not find a suitable price in the recommendations given to them. This is a loss for Expedia and the consumer as a result of insufficient website maneuverability.
+
+-   For Q3, we conclude that it is indispensable for Expedia to give out more discounts to increase the number of sales (from Q1 through price discrimination strategies), thus increasing the number of reviews. A research study has demonstrated that 67% of the consumers are eager to write a review if they are proffered a discount on a stipulated good or a service (Pitman, 2022). 
+
+
+
+## References and Acknowledgements
+
+
+*The creators of this project would like to thank Nayan (TA) for helping us with the development of this project, permitting us to more readily comprehend and change questions, address concerns and limits, and how to make the end result*
+
+ - Pitman, J. (2022, January 26). Customer Review Trends 2022. Retrieved from Bright Local: https://www.brightlocal.com/research/local-consumer-review-survey/#:~:
+text=67%25%20of%20consumers%20will%20consider,leave%20reviews%20for%20positive%
+20experiences.
+
+\begin{figure}
+\includegraphics[width = 5.3cm, height = 3.5cm, scale = 0.5]{images/thank-you.jpeg}
+\end{figure}
+
+
+
+
